@@ -1,5 +1,6 @@
-import * as factory from '@toei-jp/cinerino-factory';
 import { Connection } from 'mongoose';
+
+import * as factory from '../factory';
 import ownershipInfoModel from './mongoose/model/ownershipInfo';
 
 export type IOwnershipInfo<T extends factory.ownershipInfo.IGoodType> =

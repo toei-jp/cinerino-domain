@@ -1,11 +1,11 @@
 /**
  * 注文返品取引サービス
  */
-import * as chevre from '@toei-jp/chevre-api-nodejs-client';
-import * as factory from '@toei-jp/cinerino-factory';
 import * as createDebug from 'debug';
 import * as pug from 'pug';
 
+import * as chevre from '../../chevre';
+import * as factory from '../../factory';
 import { MongoRepository as ActionRepo } from '../../repo/action';
 import { MongoRepository as OrderRepo } from '../../repo/order';
 import { MongoRepository as OrganizationRepo } from '../../repo/organization';
@@ -409,7 +409,7 @@ export function exportTasks(status: factory.transactionStatusType) {
 /**
  * ID指定で取引のタスク出力
  */
-export function exportTasksById(params: { transactionId: string }): ITaskAndTransactionOperation<factory.task.ITask[]> {
+export function exportTasksById(params: { transactionId: string }): ITaskAndTransactionOperation<factory.task.ITask<factory.taskName>[]> {
     // tslint:disable-next-line:max-func-body-length
     return async (repos: {
         task: TaskRepo;
@@ -417,11 +417,11 @@ export function exportTasksById(params: { transactionId: string }): ITaskAndTran
     }) => {
         const transaction = await repos.transaction.findById(factory.transactionType.ReturnOrder, params.transactionId);
 
-        const taskAttributes: factory.task.IAttributes[] = [];
+        const taskAttributes: factory.task.IAttributes<factory.taskName>[] = [];
         switch (transaction.status) {
             case factory.transactionStatusType.Confirmed:
                 // 注文返品タスク
-                const returnOrderTask: factory.task.returnOrder.IAttributes = {
+                const returnOrderTask: factory.task.IAttributes<factory.taskName.ReturnOrder> = {
                     name: factory.taskName.ReturnOrder,
                     status: factory.taskStatus.Ready,
                     runsAt: new Date(), // なるはやで実行

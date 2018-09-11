@@ -2,9 +2,9 @@
  * クレジットカード決済サービス
  */
 import * as GMO from '@motionpicture/gmo-service';
-import * as factory from '@toei-jp/cinerino-factory';
 import * as createDebug from 'debug';
 
+import * as factory from '../../factory';
 import { MongoRepository as ActionRepo } from '../../repo/action';
 import { MongoRepository as TaskRepo } from '../../repo/task';
 import { MongoRepository as TransactionRepo } from '../../repo/transaction';
@@ -238,14 +238,14 @@ function onRefund(refundActionAttributes: factory.action.trade.refund.IAttribute
     return async (repos: { task: TaskRepo }) => {
         const potentialActions = refundActionAttributes.potentialActions;
         const now = new Date();
-        const taskAttributes: factory.task.IAttributes[] = [];
+        const taskAttributes: factory.task.IAttributes<factory.taskName>[] = [];
         // tslint:disable-next-line:no-single-line-block-comment
         /* istanbul ignore else */
         if (potentialActions !== undefined) {
             // tslint:disable-next-line:no-single-line-block-comment
             /* istanbul ignore else */
             if (potentialActions.sendEmailMessage !== undefined) {
-                const sendEmailMessageTask: factory.task.sendEmailMessage.IAttributes = {
+                const sendEmailMessageTask: factory.task.IAttributes<factory.taskName.SendEmailMessage> = {
                     name: factory.taskName.SendEmailMessage,
                     status: factory.taskStatus.Ready,
                     runsAt: now, // なるはやで実行

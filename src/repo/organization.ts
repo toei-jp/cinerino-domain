@@ -1,5 +1,6 @@
-import * as factory from '@toei-jp/cinerino-factory';
 import { Connection } from 'mongoose';
+
+import * as factory from '../factory';
 import organizationModel from './mongoose/model/organization';
 
 /**

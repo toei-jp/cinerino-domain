@@ -2,9 +2,9 @@
  * クレジットカード決済承認アクションサービス
  */
 import * as GMO from '@motionpicture/gmo-service';
-import * as factory from '@toei-jp/cinerino-factory';
 import * as createDebug from 'debug';
 
+import * as factory from '../../../../../../factory';
 import { MongoRepository as ActionRepo } from '../../../../../../repo/action';
 import { MongoRepository as OrganizationRepo } from '../../../../../../repo/organization';
 import { MongoRepository as TransactionRepo } from '../../../../../../repo/transaction';

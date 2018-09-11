@@ -2,8 +2,9 @@
  * 会員クレジットカードサービス
  */
 import * as GMO from '@motionpicture/gmo-service';
-import * as factory from '@toei-jp/cinerino-factory';
 import * as createDebug from 'debug';
+
+import * as factory from '../../factory';
 
 const debug = createDebug('cinerino-domain:service');
 

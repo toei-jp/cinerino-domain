@@ -3,10 +3,10 @@
  * 会員クレジットカードサービステスト
  */
 import * as GMO from '@motionpicture/gmo-service';
-import { errors } from '@toei-jp/cinerino-factory';
 import * as assert from 'power-assert';
 import * as sinon from 'sinon';
 
+import { errors } from '../../factory';
 import * as PersonCreditCardService from './creditCard';
 
 const gmoErrorMemberNotFound = { errors: [{ info: 'E01390002' }] };

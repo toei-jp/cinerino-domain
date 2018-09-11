@@ -3,13 +3,13 @@
  */
 // tslint:disable-next-line:no-require-imports
 import sgMail = require('@sendgrid/mail');
-import * as factory from '@toei-jp/cinerino-factory';
 import * as createDebug from 'debug';
 import * as httpStatus from 'http-status';
 import * as request from 'request';
 import * as util from 'util';
 import * as validator from 'validator';
 
+import * as factory from '../factory';
 import { MongoRepository as ActionRepo } from '../repo/action';
 
 export type Operation<T> = () => Promise<T>;

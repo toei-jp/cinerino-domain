@@ -2,10 +2,10 @@
  * Mocoin決済サービス
  */
 import * as mocoinapi from '@mocoin/api-nodejs-client';
-import * as factory from '@toei-jp/cinerino-factory';
 import * as createDebug from 'debug';
 // import * as moment from 'moment';
 
+import * as factory from '../../factory';
 import { MongoRepository as ActionRepo } from '../../repo/action';
 // import { MongoRepository as TaskRepo } from '../../repo/task';
 
@@ -14,7 +14,7 @@ const debug = createDebug('cinerino-domain:service');
 /**
  * Mocoin支払実行
  */
-export function payMocoin(params: factory.task.payMocoin.IData) {
+export function payMocoin(params: factory.task.IData<factory.taskName.PayMocoin>) {
     return async (repos: {
         action: ActionRepo;
         mocoinAuthClient: mocoinapi.auth.ClientCredentials;
