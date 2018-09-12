@@ -1,7 +1,7 @@
 import * as pecorino from '@pecorino/api-nodejs-client';
-import * as factory from '../../factory';
 import { IConnectionSettings, IOperation } from '../task';
 
+import * as factory from '../../factory';
 import { MongoRepository as ActionRepo } from '../../repo/action';
 
 import * as PaymentService from '../payment';

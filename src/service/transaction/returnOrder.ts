@@ -410,13 +410,11 @@ export function exportTasks(status: factory.transactionStatusType) {
  * ID指定で取引のタスク出力
  */
 export function exportTasksById(params: { transactionId: string }): ITaskAndTransactionOperation<factory.task.ITask<factory.taskName>[]> {
-    // tslint:disable-next-line:max-func-body-length
     return async (repos: {
         task: TaskRepo;
         transaction: TransactionRepo;
     }) => {
         const transaction = await repos.transaction.findById(factory.transactionType.ReturnOrder, params.transactionId);
-
         const taskAttributes: factory.task.IAttributes<factory.taskName>[] = [];
         switch (transaction.status) {
             case factory.transactionStatusType.Confirmed:

@@ -1,4 +1,3 @@
-
 import { Connection } from 'mongoose';
 
 import * as factory from '../factory';

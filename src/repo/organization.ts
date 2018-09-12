@@ -1,7 +1,7 @@
 import { Connection } from 'mongoose';
+import organizationModel from './mongoose/model/organization';
 
 import * as factory from '../factory';
-import organizationModel from './mongoose/model/organization';
 
 /**
  * 組織リポジトリー
