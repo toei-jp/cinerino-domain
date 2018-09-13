@@ -97,7 +97,15 @@ export function start(params: IStartParams):
             typeOf: factory.transactionType.PlaceOrder,
             status: factory.transactionStatusType.InProgress,
             agent: params.customer,
-            seller: seller,
+            seller: {
+                id: seller.id,
+                typeOf: seller.typeOf,
+                name: seller.name,
+                location: seller.location,
+                telephone: seller.telephone,
+                url: seller.url,
+                image: seller.image
+            },
             object: {
                 passportToken: params.passportToken,
                 passport: <any>passport,
@@ -258,7 +266,16 @@ export function confirm(params: {
         orderNumber: OrderNumberRepo;
         confirmationNumber: ConfirmationNumberRepo;
     }) => {
-        const transaction = await repos.transaction.findInProgressById(factory.transactionType.PlaceOrder, params.transactionId);
+        let transaction = await repos.transaction.findById(factory.transactionType.PlaceOrder, params.transactionId);
+        if (transaction.status === factory.transactionStatusType.Confirmed) {
+            // すでに確定済の場合
+            return <factory.transaction.placeOrder.IResult>transaction.result;
+        } else if (transaction.status === factory.transactionStatusType.Expired) {
+            throw new factory.errors.Argument('transactionId', 'Transaction already expired');
+        } else if (transaction.status === factory.transactionStatusType.Canceled) {
+            throw new factory.errors.Argument('transactionId', 'Transaction already canceled');
+        }
+
         if (transaction.agent.id !== params.agentId) {
             throw new factory.errors.Forbidden('A specified transaction is not yours.');
         }
@@ -317,14 +334,14 @@ export function confirm(params: {
 
         // ステータス変更
         debug('updating transaction...');
-        await repos.transaction.confirmPlaceOrder(
+        transaction = await repos.transaction.confirmPlaceOrder(
             params.transactionId,
             authorizeActions,
             result,
             potentialActions
         );
 
-        return result;
+        return <factory.transaction.placeOrder.IResult>transaction.result;
     };
 }
 
@@ -521,7 +538,7 @@ export function createOrderFromTransaction(params: {
             const actionResult = <factory.action.authorize.paymentMethod.creditCard.IResult>creditCardAuthorizeAction.result;
             paymentMethods.push({
                 name: 'クレジットカード',
-                paymentMethod: factory.paymentMethodType.CreditCard,
+                typeOf: factory.paymentMethodType.CreditCard,
                 paymentMethodId: actionResult.execTranResult.orderId
             });
         });
@@ -534,7 +551,7 @@ export function createOrderFromTransaction(params: {
             const actionResult = <factory.action.authorize.paymentMethod.account.IResult<factory.accountType>>a.result;
             paymentMethods.push({
                 name: a.object.accountType,
-                paymentMethod: factory.paymentMethodType.Account,
+                typeOf: factory.paymentMethodType.Account,
                 paymentMethodId: actionResult.pendingTransaction.id
             });
         });
@@ -547,7 +564,7 @@ export function createOrderFromTransaction(params: {
             const actionResult = <factory.action.authorize.paymentMethod.mocoin.IResult>a.result;
             paymentMethods.push({
                 name: 'Mocoin',
-                paymentMethod: factory.paymentMethodType.Mocoin,
+                typeOf: factory.paymentMethodType.Mocoin,
                 paymentMethodId: actionResult.mocoinTransaction.token
             });
         });
@@ -677,11 +694,12 @@ export async function createPotentialActionsFromTransaction(params: {
 }): Promise<factory.transaction.placeOrder.IPotentialActions> {
     // クレジットカード支払いアクション
     let payCreditCardAction: factory.action.trade.pay.IAttributes<factory.paymentMethodType.CreditCard> | null = null;
-    const creditCardPayment = params.order.paymentMethods.find((m) => m.paymentMethod === factory.paymentMethodType.CreditCard);
+    const creditCardPayment = params.order.paymentMethods.find((m) => m.typeOf === factory.paymentMethodType.CreditCard);
     if (creditCardPayment !== undefined) {
         payCreditCardAction = {
             typeOf: factory.actionType.PayAction,
             object: {
+                typeOf: 'PaymentMethod',
                 paymentMethod: <factory.order.IPaymentMethod<factory.paymentMethodType.CreditCard>>creditCardPayment,
                 price: params.order.price,
                 priceCurrency: params.order.priceCurrency
@@ -701,9 +719,10 @@ export async function createPotentialActionsFromTransaction(params: {
             return {
                 typeOf: <factory.actionType.PayAction>factory.actionType.PayAction,
                 object: {
+                    typeOf: <factory.action.trade.pay.TypeOfObject>'PaymentMethod',
                     paymentMethod: {
                         name: factory.paymentMethodType.Account,
-                        paymentMethod: <factory.paymentMethodType.Account>factory.paymentMethodType.Account,
+                        typeOf: <factory.paymentMethodType.Account>factory.paymentMethodType.Account,
                         paymentMethodId: a.id
                     },
                     pendingTransaction:
@@ -723,9 +742,10 @@ export async function createPotentialActionsFromTransaction(params: {
             return {
                 typeOf: <factory.actionType.PayAction>factory.actionType.PayAction,
                 object: {
+                    typeOf: <factory.action.trade.pay.TypeOfObject>'PaymentMethod',
                     paymentMethod: {
                         name: 'Mocoin',
-                        paymentMethod: <factory.paymentMethodType.Mocoin>factory.paymentMethodType.Mocoin,
+                        typeOf: <factory.paymentMethodType.Mocoin>factory.paymentMethodType.Mocoin,
                         paymentMethodId: a.id
                     },
                     mocoinTransaction: (<factory.action.authorize.paymentMethod.mocoin.IResult>a.result).mocoinTransaction,
