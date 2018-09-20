@@ -28,6 +28,16 @@ export class MongoRepository {
                 ]
             });
         }
+        if (params.location !== undefined) {
+            if (params.location.branchCode !== undefined) {
+                andConditions.push({
+                    'location.branchCode': {
+                        $exists: true,
+                        $eq: params.location.branchCode
+                    }
+                });
+            }
+        }
 
         return andConditions;
     }
