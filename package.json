@@ -14,7 +14,7 @@
     "@pecorino/api-nodejs-client": "^1.1.0",
     "@sendgrid/mail": "^6.3.1",
     "@toei-jp/chevre-api-nodejs-client": "^1.0.0-alpha.2",
-    "@toei-jp/cinerino-factory": "^1.0.0-alpha.9",
+    "@toei-jp/cinerino-factory": "^1.0.0-alpha.10",
     "@types/mongoose": "^5.2.16",
     "@types/redis": "^2.8.6",
     "@waiter/domain": "^2.0.4",
@@ -116,5 +116,5 @@
     "postversion": "git push origin --tags",
     "prepublishOnly": "npm run clean && npm run build && npm test && npm run doc"
   },
-  "version": "1.0.0"
+  "version": "1.0.0-alpha.13"
 }
