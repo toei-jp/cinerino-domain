@@ -48,6 +48,24 @@ export function exportTasksById(params: { transactionId: string }): ITaskAndTran
         });
 
         const taskAttributes: factory.task.IAttributes<factory.taskName>[] = [];
+
+        // 注文取引分析タスクを追加
+        const analyzePlaceOrderTaskAttributes: factory.task.IAttributes<factory.taskName.AnalyzePlaceOrder> = {
+            name: factory.taskName.AnalyzePlaceOrder,
+            status: factory.taskStatus.Ready,
+            runsAt: new Date(), // なるはやで実行
+            remainingNumberOfTries: 3,
+            lastTriedAt: null,
+            numberOfTried: 0,
+            executionResults: [],
+            data: {
+                transaction: transaction
+            }
+        };
+        taskAttributes.push(
+            analyzePlaceOrderTaskAttributes
+        );
+
         switch (transaction.status) {
             case factory.transactionStatusType.Confirmed:
                 const placeOrderTaskAttributes: factory.task.IAttributes<factory.taskName.PlaceOrder> = {
@@ -62,8 +80,9 @@ export function exportTasksById(params: { transactionId: string }): ITaskAndTran
                         transactionId: transaction.id
                     }
                 };
-                taskAttributes.push(placeOrderTaskAttributes);
-
+                taskAttributes.push(
+                    placeOrderTaskAttributes
+                );
                 break;
 
             // 期限切れor中止の場合は、タスクリストを作成する
@@ -123,7 +142,6 @@ export function exportTasksById(params: { transactionId: string }): ITaskAndTran
                     cancelAccountTaskAttributes,
                     cancelPointAwardTaskAttributes
                 );
-
                 break;
 
             default:
