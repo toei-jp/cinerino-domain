@@ -18,6 +18,7 @@ import { MongoRepository as TransactionRepo } from '../../repo/transaction';
 import * as AuthorizePointAwardActionService from './placeOrderInProgress/action/authorize/award/point';
 import * as SeatReservationAuthorizeActionService from './placeOrderInProgress/action/authorize/offer/seatReservation';
 import * as AuthorizeAccountPaymentActionService from './placeOrderInProgress/action/authorize/paymentMethod/account';
+import * as BoxAuthorizeActionService from './placeOrderInProgress/action/authorize/paymentMethod/box';
 import * as CreditCardAuthorizeActionService from './placeOrderInProgress/action/authorize/paymentMethod/creditCard';
 import * as MocoinAuthorizeActionService from './placeOrderInProgress/action/authorize/paymentMethod/mocoin';
 
@@ -163,6 +164,10 @@ export namespace action {
              * Mocoin承認アクションサービス
              */
             export import mocoin = MocoinAuthorizeActionService;
+            /**
+             * Boxで承認アクションサービス
+             */
+            export import box = BoxAuthorizeActionService;
         }
     }
 }
@@ -328,6 +333,18 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
     const authorizeActions = transaction.object.authorizeActions;
     let priceByAgent = 0;
     let priceBySeller = 0;
+
+    // BOXで購入時
+    const boxAuthorizeActions = authorizeActions
+        .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
+        .filter((a) =>
+            a.object.typeOf === factory.boxPaymentMethodType.CreditCard
+            || a.object.typeOf === factory.boxPaymentMethodType.Cash
+            || a.object.typeOf === factory.boxPaymentMethodType.EMoney
+        );
+    priceByAgent += boxAuthorizeActions.reduce(
+        (a, b) => a + (<factory.action.authorize.paymentMethod.box.IResult>b.result).price, 0
+    );
 
     // クレジットカードオーソリを確認
     const creditCardAuthorizeActions = authorizeActions
@@ -518,7 +535,26 @@ export function createOrderFromTransaction(params: {
     //         });
     //     });
 
-    const paymentMethods: factory.order.IPaymentMethod<factory.paymentMethodType>[] = [];
+    const paymentMethods: factory.order.IPaymentMethod<factory.paymentMethodType | factory.boxPaymentMethodType>[] = [];
+
+    // BOXで決済があれば決済方法に追加
+    params.transaction.object.authorizeActions
+        .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
+        .filter((a) =>
+            a.object.typeOf === factory.boxPaymentMethodType.CreditCard
+            || a.object.typeOf === factory.boxPaymentMethodType.Cash
+            || a.object.typeOf === factory.boxPaymentMethodType.EMoney
+        )
+        .forEach((boxAuthorizeAction: factory.action.authorize.paymentMethod.box.IAction) => {
+            const name = boxAuthorizeAction.object.typeOf === factory.boxPaymentMethodType.Cash ? 'BOX | 現金' :
+                         boxAuthorizeAction.object.typeOf === factory.boxPaymentMethodType.CreditCard ? 'BOX | クレジットカード' :
+                         boxAuthorizeAction.object.typeOf === factory.boxPaymentMethodType.EMoney ? 'BOX | 電子マネー' : '';
+            paymentMethods.push({
+                name,
+                typeOf: boxAuthorizeAction.object.typeOf,
+                paymentMethodId: '' // 確認必要
+            });
+        });
 
     // クレジットカード決済があれば決済方法に追加
     params.transaction.object.authorizeActions
