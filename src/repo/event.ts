@@ -11,6 +11,7 @@ export class MongoRepository {
     constructor(connection: Connection) {
         this.eventModel = connection.model(eventModel.modelName);
     }
+    // tslint:disable-next-line:max-func-body-length
     public static CREATE_SCREENING_EVENT_MONGO_CONDITIONS(params: factory.chevre.event.screeningEvent.ISearchConditions) {
         const andConditions: any[] = [
             {
@@ -98,6 +99,27 @@ export class MongoRepository {
         if (params.endThrough !== undefined) {
             andConditions.push({
                 endDate: { $lt: params.endThrough }
+            });
+        }
+        // tslint:disable-next-line:no-single-line-block-comment
+        /* istanbul ignore else */
+        if (params.saleStartFrom !== undefined) {
+            andConditions.push({
+                saleStartDate: { $gte: params.saleStartFrom }
+            });
+        }
+        // tslint:disable-next-line:no-single-line-block-comment
+        /* istanbul ignore else */
+        if (params.saleStartThrough !== undefined) {
+            andConditions.push({
+                saleStartDate: { $lt: params.saleStartThrough }
+            });
+        }
+        // tslint:disable-next-line:no-single-line-block-comment
+        /* istanbul ignore else */
+        if (params.preSaleFlg !== undefined) {
+            andConditions.push({
+                preSaleFlg: params.preSaleFlg
             });
         }
 
