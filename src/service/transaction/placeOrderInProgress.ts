@@ -629,6 +629,12 @@ export async function createEmailMessageFromTransaction(params: {
         const seller = params.transaction.seller;
         if (params.order.acceptedOffers[0].itemOffered.typeOf === factory.chevre.reservationType.EventReservation) {
             const event = params.order.acceptedOffers[0].itemOffered.reservationFor;
+            const phoneUtil = PhoneNumberUtil.getInstance();
+            const phoneNumber = phoneUtil.parse(seller.telephone, 'JP');
+            if (!phoneUtil.isValidNumber(phoneNumber)) {
+                throw new Error('Invalid phone number');
+            }
+            const formattedTelephone = phoneUtil.format(phoneNumber, PhoneNumberFormat.NATIONAL);
 
             pug.renderFile(
                 `${__dirname}/../../../emails/sendOrder/text.pug`,
@@ -664,7 +670,7 @@ export async function createEmailMessageFromTransaction(params: {
                     price: params.order.price,
                     inquiryUrl: params.order.url,
                     sellerName: params.order.seller.name,
-                    sellerTelephone: params.seller.telephone
+                    sellerTelephone: formattedTelephone
                 },
                 (renderMessageErr, message) => {
                     if (renderMessageErr instanceof Error) {
