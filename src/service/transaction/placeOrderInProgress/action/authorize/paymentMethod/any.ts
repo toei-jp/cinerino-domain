@@ -1,5 +1,5 @@
 /**
- * クレジットカード決済承認アクションサービス
+ * 汎用決済承認アクションサービス
  */
 import * as createDebug from 'debug';
 
@@ -15,17 +15,13 @@ export type ICreateOperation<T> = (repos: {
     organization: OrganizationRepo;
     transaction: TransactionRepo;
 }) => Promise<T>;
-
 /**
- * クレジットカードオーソリ取得
+ * 承認アクション
  */
-export function create(params: {
+export function create<T extends factory.paymentMethodType>(params: factory.action.authorize.paymentMethod.any.IObject<T> & {
     agentId: string;
     transactionId: string;
-    amount: number;
-    paymentMethod: factory.boxPaymentMethodType;
-    cash?: { received: number; returned: number };
-}): ICreateOperation<factory.action.authorize.paymentMethod.box.IAction> {
+}): ICreateOperation<factory.action.authorize.paymentMethod.any.IAction<T>> {
     // tslint:disable-next-line:max-func-body-length
     return async (repos: {
         action: ActionRepo;
@@ -37,37 +33,41 @@ export function create(params: {
             id: params.transactionId
         });
 
+        // 他者口座による決済も可能にするためにコメントアウト
+        // 基本的に、自分の口座のオーソリを他者に与えても得しないので、
+        // これが問題になるとすれば、本当にただサービスを荒らしたい悪質な攻撃のみ、ではある
+        // if (transaction.agent.id !== agentId) {
+        //     throw new factory.errors.Forbidden('A specified transaction is not yours.');
+        // }
+
+        // ショップ情報取得
         const movieTheater = await repos.organization.findById({
             typeOf: factory.organizationType.MovieTheater,
             id: transaction.seller.id
         });
 
         // 承認アクションを開始する
-        const actionAttributes: factory.action.authorize.paymentMethod.box.IAttributes = {
+        const actionAttributes: factory.action.authorize.paymentMethod.any.IAttributes<T> = {
             typeOf: factory.actionType.AuthorizeAction,
             object: {
-                typeOf: params.paymentMethod,
-                transactionId: params.transactionId,
-                amount: params.amount
+                typeOf: params.typeOf,
+                amount: params.amount,
+                additionalProperty: params.additionalProperty
             },
             agent: transaction.agent,
             recipient: transaction.seller,
             purpose: transaction // purposeは取引
         };
-        if (params.paymentMethod === factory.boxPaymentMethodType.Cash) {
-            actionAttributes.object.cash = params.cash;
-        }
         const action = await repos.action.start(actionAttributes);
+
         try {
             if (movieTheater.paymentAccepted === undefined) {
-                throw new factory.errors.Argument('transactionId', `${params.paymentMethod} payment not accepted.`);
+                throw new factory.errors.Argument('transactionId', `${params.typeOf} payment not accepted`);
             }
-            const paymentAccepted =
-                movieTheater.paymentAccepted.find(
-                    (a) => a.paymentMethodType === params.paymentMethod
-                );
+            const paymentAccepted = <factory.organization.IPaymentAccepted<T>>
+                movieTheater.paymentAccepted.find((a) => a.paymentMethodType === params.typeOf);
             if (paymentAccepted === undefined) {
-                throw new factory.errors.Argument('transactionId', `${params.paymentMethod} payment not accepted.`);
+                throw new factory.errors.Argument('transactionId', `${params.typeOf} payment not accepted`);
             }
         } catch (error) {
             debug(error);
@@ -84,16 +84,14 @@ export function create(params: {
 
         // アクションを完了
         debug('ending authorize action...');
-
-        const result: factory.action.authorize.paymentMethod.box.IResult = {
+        const result: factory.action.authorize.paymentMethod.any.IResult = {
             price: params.amount,
-            amount: 0
+            additionalProperty: params.additionalProperty
         };
 
         return repos.action.complete({ typeOf: action.typeOf, id: action.id, result: result });
     };
 }
-
 export function cancel(params: {
     agentId: string;
     transactionId: string;
@@ -112,6 +110,15 @@ export function cancel(params: {
             throw new factory.errors.Forbidden('A specified transaction is not yours.');
         }
 
-        await repos.action.cancel({ typeOf: factory.actionType.AuthorizeAction, id: params.actionId });
+        const action = await repos.action.cancel({ typeOf: factory.actionType.AuthorizeAction, id: params.actionId });
+        const actionResult = <factory.action.authorize.paymentMethod.any.IResult>action.result;
+        debug('actionResult:', actionResult);
+
+        // 承認取消
+        try {
+            // some op
+        } catch (error) {
+            // no op
+        }
     };
 }

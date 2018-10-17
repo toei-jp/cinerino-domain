@@ -3,7 +3,7 @@
     "lines": 40,
     "statements": 40,
     "functions": 30,
-    "branches": 30,
+    "branches": 20,
     "extension": [
         ".ts"
     ],
