@@ -11,6 +11,57 @@ export class MongoRepository {
     constructor(connection: Connection) {
         this.orderModel = connection.model(OrderModel.modelName);
     }
+    public static CREATE_MONGO_CONDITIONS_SEARCH(params: factory.order.ISearchOrdersConditions) {
+        const andConditions: any[] = [];
+        if (params.reservedEventStartDateFrom !== undefined && params.reservedEventStartDateThrough !== undefined) {
+            andConditions.push({
+                'acceptedOffers.itemOffered.reservationFor.startDate': {
+                    $gte: params.reservedEventStartDateFrom,
+                    $lte: params.reservedEventStartDateThrough
+                }
+            });
+        }
+        if (params.locationBranchCode !== undefined) {
+            andConditions.push({
+                'acceptedOffers.itemOffered.reservationFor.superEvent.location.branchCode': params.locationBranchCode
+            });
+        }
+        if (params.orderDateFrom !== undefined) {
+            andConditions.push({
+                orderDate: { $gte: params.orderDateFrom }
+            });
+        }
+        if (params.orderDateThrough !== undefined) {
+            andConditions.push({
+                orderDate: { $lte: params.orderDateThrough }
+            });
+        }
+        if (params.screeningEventSeriesId !== undefined) {
+            andConditions.push({
+                'acceptedOffers.itemOffered.reservationFor.superEvent.id': params.screeningEventSeriesId
+            });
+        }
+        if (params.confirmationNumber !== undefined) {
+            andConditions.push({
+                confirmationNumber: params.confirmationNumber
+            });
+        }
+        if (params.telephone !== undefined) {
+            andConditions.push({
+                'customer.telephone': params.telephone
+            });
+        }
+        if (params.paymentMethods !== undefined) {
+            andConditions.push({
+                'paymentMethods.typeOf': {
+                    $exists: true,
+                    $in: params.paymentMethods
+                }
+            });
+        }
+
+        return andConditions;
+    }
     // tslint:disable-next-line:max-func-body-length
     public static CREATE_MONGO_CONDITIONS(params: factory.order.ISearchConditions) {
         const andConditions: any[] = [
@@ -224,6 +275,40 @@ export class MongoRepository {
             { $and: conditions }
         ).setOptions({ maxTimeMS: 10000 })
             .exec();
+    }
+    public async countSearchOrder(params: factory.order.ISearchOrdersConditions): Promise<number> {
+        const conditions = MongoRepository.CREATE_MONGO_CONDITIONS_SEARCH(params);
+
+        return this.orderModel.countDocuments(
+            { $and: conditions }
+        ).setOptions({ maxTimeMS: 10000 })
+            .exec();
+    }
+    /**
+     * 注文を検索する
+     */
+    public async searchOrder(params: factory.order.ISearchOrdersConditions): Promise<factory.order.IOrder[]> {
+        const conditions = MongoRepository.CREATE_MONGO_CONDITIONS_SEARCH(params);
+        const query = this.orderModel.find(
+            { $and: conditions },
+            {
+                __v: 0,
+                createdAt: 0,
+                updatedAt: 0
+            }
+        );
+        // tslint:disable-next-line:no-single-line-block-comment
+        /* istanbul ignore else */
+        if (params.limit !== undefined && params.page !== undefined) {
+            query.limit(params.limit).skip(params.limit * (params.page - 1));
+        }
+        // tslint:disable-next-line:no-single-line-block-comment
+        /* istanbul ignore else */
+        if (params.sort !== undefined) {
+            query.sort(params.sort);
+        }
+
+        return query.setOptions({ maxTimeMS: 10000 }).exec().then((docs) => docs.map((doc) => doc.toObject()));
     }
     /**
      * 注文を検索する
