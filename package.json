@@ -15,7 +15,7 @@
     "@pecorino/api-nodejs-client": "^1.2.0",
     "@sendgrid/mail": "^6.3.1",
     "@toei-jp/chevre-api-nodejs-client": "^1.0.0-alpha.13",
-    "@toei-jp/cinerino-factory": "^1.0.1-alpha.1",
+    "@toei-jp/cinerino-factory": "^1.0.0-alpha.22",
     "@types/mongoose": "^5.2.19",
     "@types/redis": "^2.8.7",
     "@waiter/domain": "^2.0.4",
