@@ -347,14 +347,15 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.CreditCard);
     priceByAgent += creditCardAuthorizeActions.reduce(
-        (a, b) => a + (<factory.action.authorize.paymentMethod.creditCard.IResult>b.result).price, 0
+        (a, b) => a + (<factory.action.authorize.paymentMethod.creditCard.IResult>b.result).amount, 0
     );
 
     // コイン承認を確認
-    const authorizeCoinActions = authorizeActions
-        .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
-        .filter((a) => a.object.typeOf === factory.paymentMethodType.Account)
-        .filter((a) => a.object.accountType === factory.accountType.Coin);
+    const authorizeCoinActions =
+        (<factory.action.authorize.paymentMethod.account.IAction<factory.accountType.Coin>[]>authorizeActions)
+            .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
+            .filter((a) => a.object.typeOf === factory.paymentMethodType.Account)
+            .filter((a) => a.result !== undefined && a.result.fromAccount.accountType === factory.accountType.Coin);
     priceByAgent += authorizeCoinActions.reduce(
         (a, b) => a + (<factory.action.authorize.paymentMethod.account.IResult<factory.accountType.Coin>>b.result).amount, 0
     );
@@ -364,7 +365,7 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.MovieTicket);
     priceByAgent += authorizeMovieTicketActions.reduce(
-        (a, b) => a + (<factory.action.authorize.paymentMethod.movieTicket.IResult>b.result).price, 0
+        (a, b) => a + (<factory.action.authorize.paymentMethod.movieTicket.IResult>b.result).amount, 0
     );
 
     // 現金承認を確認
@@ -372,7 +373,7 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.Cash);
     priceByAgent += authorizeCashActions.reduce(
-        (a, b) => a + (<factory.action.authorize.paymentMethod.any.IResult>b.result).price, 0
+        (a, b) => a + (<factory.action.authorize.paymentMethod.any.IResult>b.result).amount, 0
     );
 
     // ポイントインセンティブは複数可だが、現時点で1注文につき1ポイントに限定
@@ -405,7 +406,11 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
                 (<factory.action.authorize.paymentMethod.account.IAction<factory.accountType.Point>[]>authorizeActions)
                     .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
                     .filter((a) => a.object.typeOf === factory.paymentMethodType.Account)
-                    .filter((a) => a.object.accountType === factory.accountType.Point)
+                    .filter((a) => {
+                        const result = (<factory.action.authorize.paymentMethod.account.IResult<factory.accountType.Point>>a.result);
+
+                        return result.fromAccount.accountType === factory.accountType.Point;
+                    })
                     .reduce((a, b) => a + b.object.amount, 0);
             if (requiredPoint !== authorizedPointAmount) {
                 throw new factory.errors.Argument('transactionId', 'Required point amount not satisfied');
@@ -422,16 +427,72 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
     }
 }
 
-export function validateMovieTicket(_: factory.transaction.placeOrder.ITransaction) {
-    // const authorizeActions = transaction.object.authorizeActions;
+/**
+ * 座席予約オファー承認に対してムビチケ承認条件が整っているかどうか検証する
+ */
+export function validateMovieTicket(transaction: factory.transaction.placeOrder.ITransaction) {
+    const authorizeActions = transaction.object.authorizeActions;
 
-    // const authorizeMovieTicketActions = authorizeActions
-    //     .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
-    //     .filter((a) => a.object.typeOf === factory.action.authorize.paymentMethod.movieTicket.ObjectType.MovieTicket);
+    const authorizeMovieTicketActions = <factory.action.authorize.paymentMethod.movieTicket.IAction[]>authorizeActions
+        .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
+        .filter((a) => a.object.typeOf === factory.paymentMethodType.MovieTicket);
 
-    // const seatReservationAuthorizeActions = <factory.action.authorize.offer.seatReservation.IAction[]>authorizeActions
-    //     .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
-    //     .filter((a) => a.object.typeOf === factory.action.authorize.offer.seatReservation.ObjectType.SeatReservation);
+    const seatReservationAuthorizeActions = <factory.action.authorize.offer.seatReservation.IAction[]>authorizeActions
+        .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
+        .filter((a) => a.object.typeOf === factory.action.authorize.offer.seatReservation.ObjectType.SeatReservation);
+
+    // ムビチケオファーを受け付けた座席予約を検索する
+    const requiredMovieTickets: factory.paymentMethod.paymentCard.movieTicket.IMovieTicket[] = [];
+    seatReservationAuthorizeActions.forEach((a) => {
+        a.object.acceptedOffer.forEach((offer: factory.chevre.event.screeningEvent.IAcceptedTicketOffer) => {
+            offer.priceSpecification.priceComponent.forEach((component) => {
+                // ムビチケ券種区分チャージ仕様があれば検証リストに追加
+                if (component.typeOf === factory.chevre.priceSpecificationType.MovieTicketTypeChargeSpecification) {
+                    requiredMovieTickets.push({
+                        typeOf: factory.paymentMethodType.MovieTicket,
+                        identifier: '',
+                        accessCode: '',
+                        serviceType: component.appliesToMovieTicketType,
+                        serviceOutput: {
+                            reservationFor: { typeOf: factory.chevre.eventType.ScreeningEvent, id: a.object.event.id },
+                            reservedTicket: { ticketedSeat: offer.ticketedSeat }
+                        }
+                    });
+                }
+            });
+        });
+    });
+    debug(requiredMovieTickets.length, 'movie tickets required');
+
+    const authorizedMovieTickets: factory.paymentMethod.paymentCard.movieTicket.IMovieTicket[] = [];
+    authorizeMovieTicketActions.forEach((a) => {
+        authorizedMovieTickets.push(...a.object.movieTickets);
+    });
+    debug(authorizedMovieTickets.length, 'movie tickets authorized');
+
+    // 合計枚数OK?
+    if (requiredMovieTickets.length !== authorizedMovieTickets.length) {
+        throw new factory.errors.Argument('transactionId', 'Required number of movie tickets not satisfied');
+    }
+
+    // イベントとムビチケ券種区分ごとに枚数OK?
+    const eventIds = [...new Set(requiredMovieTickets.map((t) => t.serviceOutput.reservationFor.id))];
+    debug('movie ticket event ids:', eventIds);
+    eventIds.forEach((eventId) => {
+        const requiredMovieTicketsByEvent = requiredMovieTickets.filter((t) => t.serviceOutput.reservationFor.id === eventId);
+        const serviceTypes = [...new Set(requiredMovieTicketsByEvent.map((t) => t.serviceType))];
+        debug('movie ticket serviceTypes:', serviceTypes);
+        serviceTypes.forEach((serviceType) => {
+            const requiredMovieTicketsByServiceType = requiredMovieTicketsByEvent.filter((t) => t.serviceType === serviceType);
+            debug(requiredMovieTicketsByServiceType.length, 'movie tickets required', eventId, serviceType);
+            const authorizedMovieTicketsByEventAndServiceType = authorizedMovieTickets.filter((t) => {
+                return t.serviceOutput.reservationFor.id === eventId && t.serviceType === serviceType;
+            });
+            if (requiredMovieTicketsByServiceType.length !== authorizedMovieTicketsByEventAndServiceType.length) {
+                throw new factory.errors.Argument('transactionId', 'Required number of movie tickets not satisfied');
+            }
+        });
+    });
 }
 
 /**
@@ -579,11 +640,11 @@ export function createOrderFromTransaction(params: {
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.Account)
         .forEach((a: factory.action.authorize.paymentMethod.account.IAction<factory.accountType>) => {
-            const actionResult = <factory.action.authorize.paymentMethod.account.IResult<factory.accountType>>a.result;
+            const result = (<factory.action.authorize.paymentMethod.account.IResult<factory.accountType>>a.result);
             paymentMethods.push({
-                name: a.object.accountType,
+                name: result.fromAccount.accountType,
                 typeOf: factory.paymentMethodType.Account,
-                paymentMethodId: actionResult.pendingTransaction.id
+                paymentMethodId: result.fromAccount.accountNumber
             });
         });
 
@@ -600,17 +661,19 @@ export function createOrderFromTransaction(params: {
             });
         });
 
-    // ムビチケ決済があれば決済方法に追加
+    // ムビチケ決済があれば決済方法に追加(ムビチケ購入管理番号でユニークになるように)
     params.transaction.object.authorizeActions
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.MovieTicket)
         .forEach((authorizeMovieTicketAction: factory.action.authorize.paymentMethod.movieTicket.IAction) => {
-            // const actionResult = <factory.action.authorize.paymentMethod.movieTicket.IResult>action.result;
-            paymentMethods.push({
-                name: 'ムビチケ',
-                typeOf: factory.paymentMethodType.MovieTicket,
-                paymentMethodId: authorizeMovieTicketAction.object.movieTickets.map((movieTicket) => movieTicket.identifier).join(',')
-            });
+            const movieTicketIdentifiers = [...new Set(authorizeMovieTicketAction.object.movieTickets.map((t) => t.identifier))];
+            paymentMethods.push(...movieTicketIdentifiers.map((movieTicketIdentifier) => {
+                return {
+                    name: 'ムビチケ',
+                    typeOf: factory.paymentMethodType.MovieTicket,
+                    paymentMethodId: movieTicketIdentifier
+                };
+            }));
         });
 
     // 現金決済があれば決済方法に追加
@@ -785,14 +848,16 @@ export async function createPotentialActionsFromTransaction(params: {
             .filter((a) => a.object.typeOf === factory.paymentMethodType.Account);
     const payAccountActions: factory.action.trade.pay.IAttributes<factory.paymentMethodType.Account>[] =
         authorizeAccountActions.map((a) => {
+            const result = <factory.action.authorize.paymentMethod.account.IResult<factory.accountType>>a.result;
+
             return {
                 typeOf: <factory.actionType.PayAction>factory.actionType.PayAction,
                 object: {
                     typeOf: <factory.action.trade.pay.TypeOfObject>'PaymentMethod',
                     paymentMethod: {
-                        name: factory.paymentMethodType.Account,
+                        name: result.fromAccount.accountType,
                         typeOf: <factory.paymentMethodType.Account>factory.paymentMethodType.Account,
-                        paymentMethodId: a.id
+                        paymentMethodId: result.fromAccount.accountNumber
                     },
                     pendingTransaction:
                         (<factory.action.authorize.paymentMethod.account.IResult<factory.accountType>>a.result).pendingTransaction
@@ -825,22 +890,28 @@ export async function createPotentialActionsFromTransaction(params: {
             };
         });
 
-    // ムビチケ使用アクション
-    // let useMvtkAction: factory.action.consume.use.mvtk.IAttributes | null = null;
-    // const mvtkAuthorizeAction = <factory.action.authorize.discount.mvtk.IAction>params.transaction.object.authorizeActions
-    //     .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
-    //     .find((a) => a.object.typeOf === factory.action.authorize.discount.mvtk.ObjectType.Mvtk);
-    // if (mvtkAuthorizeAction !== undefined) {
-    //     useMvtkAction = {
-    //         typeOf: factory.actionType.UseAction,
-    //         object: {
-    //             typeOf: factory.action.consume.use.mvtk.ObjectType.Mvtk,
-    //             seatInfoSyncIn: mvtkAuthorizeAction.object.seatInfoSyncIn
-    //         },
-    //         agent: params.transaction.agent,
-    //         purpose: params.order
-    //     };
-    // }
+    // ムビチケ決済アクション
+    const authorizeMovieTicketActions = <factory.action.authorize.paymentMethod.movieTicket.IAction[]>
+        params.transaction.object.authorizeActions
+            .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
+            .filter((a) => a.object.typeOf === factory.paymentMethodType.MovieTicket);
+    const payMovieTicketActions: factory.action.trade.pay.IAttributes<factory.paymentMethodType.MovieTicket>[] =
+        authorizeMovieTicketActions.map((a) => {
+            return {
+                typeOf: <factory.actionType.PayAction>factory.actionType.PayAction,
+                object: {
+                    typeOf: <factory.action.trade.pay.TypeOfObject>'PaymentMethod',
+                    paymentMethod: {
+                        name: 'ムビチケ',
+                        typeOf: <factory.paymentMethodType.MovieTicket>factory.paymentMethodType.MovieTicket,
+                        paymentMethodId: a.id
+                    },
+                    movieTickets: a.object.movieTickets
+                },
+                agent: params.transaction.agent,
+                purpose: params.order
+            };
+        });
 
     // Pecorinoインセンティブに対する承認アクションの分だけ、Pecorinoインセンティブ付与アクションを作成する
     let givePointAwardActions: factory.action.transfer.give.pointAward.IAttributes[] = [];
@@ -901,10 +972,9 @@ export async function createPotentialActionsFromTransaction(params: {
             potentialActions: {
                 // クレジットカード決済があれば支払アクション追加
                 payCreditCard: (payCreditCardAction !== null) ? payCreditCardAction : undefined,
-                // Pecorino決済があれば支払アクション追加
                 payAccount: payAccountActions,
                 payMocoin: payMocoinActions,
-                // useMvtk: (useMvtkAction !== null) ? useMvtkAction : undefined,
+                payMovieTicket: payMovieTicketActions,
                 sendOrder: sendOrderActionAttributes,
                 givePointAward: givePointAwardActions
             }

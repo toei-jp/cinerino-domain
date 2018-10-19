@@ -1,6 +1,6 @@
 // tslint:disable:no-implicit-dependencies
 /**
- * クレジットカード決済承認サービステスト
+ * 汎用決済承認サービステスト
  */
 import * as assert from 'power-assert';
 import * as sinon from 'sinon';
