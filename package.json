@@ -14,7 +14,7 @@
     "@movieticket/reserve-api-nodejs-client": "^1.0.0",
     "@pecorino/api-nodejs-client": "^1.2.0",
     "@sendgrid/mail": "^6.3.1",
-    "@toei-jp/chevre-api-nodejs-client": "^1.0.0-alpha.11",
+    "@toei-jp/chevre-api-nodejs-client": "^1.0.0-alpha.13",
     "@toei-jp/cinerino-factory": "^1.0.1-alpha.1",
     "@types/mongoose": "^5.2.19",
     "@types/redis": "^2.8.7",
@@ -118,5 +118,5 @@
     "postversion": "git push origin --tags",
     "prepublishOnly": "npm run clean && npm run build && npm test && npm run doc"
   },
-  "version": "1.0.0"
+  "version": "1.0.0-alpha.34"
 }
