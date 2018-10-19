@@ -364,7 +364,7 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.MovieTicket);
     priceByAgent += authorizeMovieTicketActions.reduce(
-        (a, b) => a + (<factory.action.authorize.paymentMethod.movieTicket.IResult>b.result).price, 0
+        (a: number, b) => a + (<factory.action.authorize.paymentMethod.movieTicket.IResult>b.result).price, 0
     );
 
     // 現金承認を確認
@@ -372,7 +372,7 @@ export function validateTransaction(transaction: factory.transaction.placeOrder.
         .filter((a) => a.actionStatus === factory.actionStatusType.CompletedActionStatus)
         .filter((a) => a.object.typeOf === factory.paymentMethodType.Cash);
     priceByAgent += authorizeCashActions.reduce(
-        (a, b) => a + (<factory.action.authorize.paymentMethod.any.IResult>b.result).price, 0
+        (a: number, b) => a + (<factory.action.authorize.paymentMethod.any.IResult>b.result).price, 0
     );
 
     // ポイントインセンティブは複数可だが、現時点で1注文につき1ポイントに限定
