@@ -68,6 +68,7 @@ const schema = new mongoose.Schema(
         url: String,
         orderStatus: String,
         orderDate: Date,
+        cancelDate: Date,
         isGift: Boolean
     },
     {

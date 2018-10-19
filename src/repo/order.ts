@@ -186,6 +186,19 @@ export class MongoRepository {
         }
     }
     /**
+     * 注文ステタスとキャンセル時間を変更
+     * @param orderNumber 注文番号
+     */
+    public async cancelOrder(orderNumber: string) {
+        const doc = await this.orderModel.findOneAndUpdate(
+            { orderNumber: orderNumber },
+            { orderStatus: factory.orderStatus.OrderReturned, cancelDate: new Date() }
+        ).exec();
+        if (doc === null) {
+            throw new factory.errors.NotFound('Order');
+        }
+    }
+    /**
      * 注文番号から注文を取得する
      * @param orderNumber 注文番号
      */
