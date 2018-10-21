@@ -245,7 +245,10 @@ export function cancelReservations(params: { orderNumber: string }) {
 
             // 注文ステータス変更
             debug('changing orderStatus...');
-            await repos.order.cancelOrder(order.orderNumber);
+            await repos.order.returnOrder({
+                orderNumber: order.orderNumber,
+                dateReturned: new Date()
+            });
         } catch (error) {
             // actionにエラー結果を追加
             try {
