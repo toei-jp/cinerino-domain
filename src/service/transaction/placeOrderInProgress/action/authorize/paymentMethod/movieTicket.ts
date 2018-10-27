@@ -48,9 +48,16 @@ export function create(params: factory.action.authorize.paymentMethod.movieTicke
         //     throw new factory.errors.Forbidden('A specified transaction is not yours.');
         // }
 
-        const eventIds = [...new Set(params.movieTickets.map((ticket) => ticket.serviceOutput.reservationFor.id))];
+        // イベント1つのみ許可
+        const eventIds = [...new Set(params.movieTickets.map((t) => t.serviceOutput.reservationFor.id))];
         if (eventIds.length !== 1) {
             throw new factory.errors.Argument('movieTickets', 'Number of events must be 1');
+        }
+
+        // ムビチケ購入管理番号は1つのみ許可
+        const movieTicketIdentifiers = [...new Set(params.movieTickets.map((t) => t.identifier))];
+        if (movieTicketIdentifiers.length !== 1) {
+            throw new factory.errors.Argument('movieTickets', 'Number of movie ticket identifiers must be 1');
         }
 
         // イベント情報取得
@@ -136,6 +143,10 @@ export function create(params: factory.action.authorize.paymentMethod.movieTicke
         debug('ending authorize action...');
         const result: factory.action.authorize.paymentMethod.movieTicket.IResult = {
             amount: 0,
+            paymentMethod: factory.paymentMethodType.MovieTicket,
+            paymentStatus: factory.paymentStatusType.PaymentDue,
+            paymentMethodId: params.movieTickets[0].identifier,
+            name: 'ムビチケ',
             additionalProperty: params.additionalProperty,
             ...checkResult
         };
