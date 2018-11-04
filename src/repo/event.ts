@@ -33,6 +33,16 @@ export class MongoRepository {
         if (params.superEvent !== undefined) {
             // tslint:disable-next-line:no-single-line-block-comment
             /* istanbul ignore else */
+            if (Array.isArray(params.superEvent.ids)) {
+                andConditions.push({
+                    'superEvent.id': {
+                        $exists: true,
+                        $in: params.superEvent.ids
+                    }
+                });
+            }
+            // tslint:disable-next-line:no-single-line-block-comment
+            /* istanbul ignore else */
             if (Array.isArray(params.superEvent.locationBranchCodes)) {
                 andConditions.push({
                     'superEvent.location.branchCode': {
@@ -144,27 +154,16 @@ export class MongoRepository {
                     }
                 });
             }
-            // tslint:disable-next-line:no-single-line-block-comment
-            /* istanbul ignore else */
-            if (params.saleStartFrom !== undefined) {
-                andConditions.push({
-                    saleStartDate: { $gte: params.saleStartFrom }
-                });
-            }
-            // tslint:disable-next-line:no-single-line-block-comment
-            /* istanbul ignore else */
-            if (params.saleStartThrough !== undefined) {
-                andConditions.push({
-                    saleStartDate: { $lt: params.saleStartThrough }
-                });
-            }
-            // tslint:disable-next-line:no-single-line-block-comment
-            /* istanbul ignore else */
-            if (params.preSaleFlg !== undefined) {
-                andConditions.push({
-                    preSaleFlg: params.preSaleFlg
-                });
-            }
+        }
+        // tslint:disable-next-line:no-single-line-block-comment
+        /* istanbul ignore else */
+        if (Array.isArray(params.ticketTypeGroups)) {
+            andConditions.push({
+                ticketTypeGroup: {
+                    $exists: true,
+                    $in: params.ticketTypeGroups
+                }
+            });
         }
 
         return andConditions;

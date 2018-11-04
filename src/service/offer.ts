@@ -27,7 +27,6 @@ export function searchScreeningEventTicketOffers(params: {
         debug('searching screeninf event offers...', params);
         // Chevreで券種オファーを検索
         let offers = await repos.eventService.searchScreeningEventTicketOffers({ eventId: params.event.id });
-        debug(offers);
 
         // 店舗条件によって対象を絞る
         if (params.seller.typeOf !== factory.organizationType.MovieTheater) {
