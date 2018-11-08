@@ -61,14 +61,13 @@ const schema = new mongoose.Schema(
     }
 );
 
-// 取引のタスク検索に使用
 schema.index(
-    { 'data.transactionId': 1 },
-    {
-        partialFilterExpression: {
-            'data.transactionId': { $exists: true }
-        }
-    }
+    { createdAt: 1 },
+    { name: 'searchByCreatedAt' }
+);
+schema.index(
+    { updatedAt: 1 },
+    { name: 'searchByUpdatedAt' }
 );
 // 基本的にグループごとに、ステータスと実行日時を見て、タスクは実行される
 schema.index(

@@ -4,10 +4,9 @@
 import * as waiter from '@waiter/domain';
 import * as createDebug from 'debug';
 import { PhoneNumberFormat, PhoneNumberUtil } from 'google-libphonenumber';
-import * as moment from 'moment-timezone';
-import * as pug from 'pug';
 import * as util from 'util';
 
+import * as emailMessageBuilder from '../../emailMessageBuilder';
 import * as factory from '../../factory';
 import { MongoRepository as ActionRepo } from '../../repo/action';
 import { RedisRepository as ConfirmationNumberRepo } from '../../repo/confirmationNumber';
@@ -221,21 +220,27 @@ export function setCustomerContact(params: {
  */
 export function confirm(params: {
     /**
-     * 取引進行者ID
-     */
-    agentId: string;
-    /**
      * 取引ID
      */
-    transactionId: string;
+    id: string;
     /**
-     * 注文メールを送信するかどうか
+     * 取引進行者
      */
-    sendEmailMessage?: boolean;
-    /**
-     * 注文日時
-     */
-    orderDate: Date;
+    agent: { id: string };
+    result: {
+        order: {
+            /**
+             * 注文日時
+             */
+            orderDate: Date;
+        };
+    };
+    options: {
+        /**
+         * 注文メールを送信するかどうか
+         */
+        sendEmailMessage?: boolean;
+    };
 }) {
     return async (repos: {
         action: ActionRepo;
@@ -246,7 +251,7 @@ export function confirm(params: {
     }) => {
         let transaction = await repos.transaction.findById({
             typeOf: factory.transactionType.PlaceOrder,
-            id: params.transactionId
+            id: params.id
         });
         if (transaction.status === factory.transactionStatusType.Confirmed) {
             // すでに確定済の場合
@@ -257,7 +262,7 @@ export function confirm(params: {
             throw new factory.errors.Argument('transactionId', 'Transaction already canceled');
         }
 
-        if (transaction.agent.id !== params.agentId) {
+        if (transaction.agent.id !== params.agent.id) {
             throw new factory.errors.Forbidden('A specified transaction is not yours.');
         }
 
@@ -273,9 +278,9 @@ export function confirm(params: {
         }
 
         // 取引に対する全ての承認アクションをマージ
-        let authorizeActions = await repos.action.findAuthorizeByTransactionId({ transactionId: params.transactionId });
+        let authorizeActions = await repos.action.findAuthorizeByTransactionId({ transactionId: params.id });
         // 万が一このプロセス中に他処理が発生してもそれらを無視するように、endDateでフィルタリング
-        authorizeActions = authorizeActions.filter((a) => (a.endDate !== undefined && a.endDate < params.orderDate));
+        authorizeActions = authorizeActions.filter((a) => (a.endDate !== undefined && a.endDate < params.result.order.orderDate));
         transaction.object.authorizeActions = authorizeActions;
 
         // 取引の確定条件が全て整っているかどうか確認
@@ -286,19 +291,19 @@ export function confirm(params: {
 
         // 注文番号を発行
         const orderNumber = await repos.orderNumber.publish({
-            orderDate: params.orderDate,
+            orderDate: params.result.order.orderDate,
             sellerType: seller.typeOf,
             sellerBranchCode: seller.location.branchCode
         });
         const confirmationNumber = await repos.confirmationNumber.publish({
-            orderDate: params.orderDate
+            orderDate: params.result.order.orderDate
         });
         // 結果作成
         const order = createOrderFromTransaction({
             transaction: transaction,
             orderNumber: orderNumber,
             confirmationNumber: confirmationNumber,
-            orderDate: params.orderDate,
+            orderDate: params.result.order.orderDate,
             orderStatus: factory.orderStatus.OrderProcessing,
             isGift: false,
             seller: seller
@@ -313,13 +318,13 @@ export function confirm(params: {
             customerContact: customerContact,
             order: order,
             seller: seller,
-            sendEmailMessage: params.sendEmailMessage
+            sendEmailMessage: params.options.sendEmailMessage
         });
 
         // ステータス変更
         debug('updating transaction...');
         transaction = await repos.transaction.confirmPlaceOrder({
-            id: params.transactionId,
+            id: params.id,
             authorizeActions: authorizeActions,
             result: result,
             potentialActions: potentialActions
@@ -594,7 +599,8 @@ export function createOrderFromTransaction(params: {
                 paymentMethods.push({
                     name: result.name,
                     typeOf: paymentMethodType,
-                    paymentMethodId: result.paymentMethodId
+                    paymentMethodId: result.paymentMethodId,
+                    additionalProperty: (Array.isArray(result.additionalProperty)) ? result.additionalProperty : []
                 });
             });
     });
@@ -621,107 +627,6 @@ export function createOrderFromTransaction(params: {
         orderDate: params.orderDate,
         isGift: params.isGift
     };
-}
-
-export async function createEmailMessageFromTransaction(params: {
-    transaction: factory.transaction.placeOrder.ITransaction;
-    customerContact: factory.transaction.placeOrder.ICustomerContact;
-    order: factory.order.IOrder;
-    seller: factory.organization.movieTheater.IOrganization;
-}): Promise<factory.creativeWork.message.email.ICreativeWork> {
-    return new Promise<factory.creativeWork.message.email.ICreativeWork>((resolve, reject) => {
-        const seller = params.transaction.seller;
-        if (params.order.acceptedOffers[0].itemOffered.typeOf === factory.chevre.reservationType.EventReservation) {
-            const event = params.order.acceptedOffers[0].itemOffered.reservationFor;
-            const phoneUtil = PhoneNumberUtil.getInstance();
-            const phoneNumber = phoneUtil.parse(seller.telephone, 'JP');
-            if (!phoneUtil.isValidNumber(phoneNumber)) {
-                throw new Error('Invalid phone number');
-            }
-            const formattedTelephone = phoneUtil.format(phoneNumber, PhoneNumberFormat.NATIONAL);
-
-            pug.renderFile(
-                `${__dirname}/../../../emails/sendOrder/text.pug`,
-                {
-                    familyName: params.customerContact.familyName,
-                    givenName: params.customerContact.givenName,
-                    orderDate: moment(params.order.orderDate).locale('ja').tz('Asia/Tokyo').format('YYYY年MM月DD日(ddd) HH:mm:ss'),
-                    orderNumber: params.order.orderNumber,
-                    confirmationNumber: params.order.confirmationNumber,
-                    eventStartDate: util.format(
-                        '%s - %s',
-                        moment(event.startDate).locale('ja').tz('Asia/Tokyo').format('YYYY年MM月DD日(ddd) HH:mm'),
-                        moment(event.endDate).tz('Asia/Tokyo').format('HH:mm')
-                    ),
-                    workPerformedName: event.workPerformed.name,
-                    screenName: event.location.name.ja,
-                    reservedSeats: params.order.acceptedOffers.map((o) => {
-                        const reservation = o.itemOffered;
-                        let option = '';
-                        if (Array.isArray(reservation.reservationFor.superEvent.videoFormat)) {
-                            option += reservation.reservationFor.superEvent.videoFormat.map((format) => format.typeOf).join(',');
-                        }
-
-                        return util.format(
-                            '%s %s %s %s (%s)',
-                            reservation.reservedTicket.ticketedSeat.seatNumber,
-                            reservation.reservedTicket.ticketType.name.ja,
-                            reservation.price,
-                            reservation.priceCurrency,
-                            option
-                        );
-                    }).join('\n'),
-                    price: params.order.price,
-                    inquiryUrl: params.order.url,
-                    sellerName: params.order.seller.name,
-                    sellerTelephone: formattedTelephone
-                },
-                (renderMessageErr, message) => {
-                    if (renderMessageErr instanceof Error) {
-                        reject(renderMessageErr);
-
-                        return;
-                    }
-
-                    debug('message:', message);
-                    pug.renderFile(
-                        `${__dirname}/../../../emails/sendOrder/subject.pug`,
-                        {
-                            sellerName: params.order.seller.name
-                        },
-                        (renderSubjectErr, subject) => {
-                            if (renderSubjectErr instanceof Error) {
-                                reject(renderSubjectErr);
-
-                                return;
-                            }
-
-                            debug('subject:', subject);
-
-                            const email: factory.creativeWork.message.email.ICreativeWork = {
-                                typeOf: factory.creativeWorkType.EmailMessage,
-                                identifier: `placeOrderTransaction-${params.transaction.id}`,
-                                name: `placeOrderTransaction-${params.transaction.id}`,
-                                sender: {
-                                    typeOf: seller.typeOf,
-                                    name: seller.name.ja,
-                                    email: 'noreply@example.com'
-                                },
-                                toRecipient: {
-                                    typeOf: params.transaction.agent.typeOf,
-                                    name: `${params.customerContact.familyName} ${params.customerContact.givenName}`,
-                                    email: params.customerContact.email
-                                },
-                                about: subject,
-                                text: message
-                            };
-                            resolve(email);
-                        }
-                    );
-                }
-            );
-        }
-    });
 }
 
 /**
@@ -752,7 +657,8 @@ export async function createPotentialActionsFromTransaction(params: {
                     paymentMethod: {
                         name: result.name,
                         typeOf: <factory.paymentMethodType.CreditCard>result.paymentMethod,
-                        paymentMethodId: result.paymentMethodId
+                        paymentMethodId: result.paymentMethodId,
+                        additionalProperty: (Array.isArray(result.additionalProperty)) ? result.additionalProperty : []
                     },
                     price: result.amount,
                     priceCurrency: factory.priceCurrency.JPY,
@@ -782,7 +688,8 @@ export async function createPotentialActionsFromTransaction(params: {
                     paymentMethod: {
                         name: result.name,
                         typeOf: <factory.paymentMethodType.Account>result.paymentMethod,
-                        paymentMethodId: result.paymentMethodId
+                        paymentMethodId: result.paymentMethodId,
+                        additionalProperty: (Array.isArray(result.additionalProperty)) ? result.additionalProperty : []
                     },
                     pendingTransaction:
                         (<factory.action.authorize.paymentMethod.account.IResult<factory.accountType>>a.result).pendingTransaction
@@ -811,7 +718,8 @@ export async function createPotentialActionsFromTransaction(params: {
                     paymentMethod: {
                         name: result.name,
                         typeOf: <factory.paymentMethodType.MovieTicket>result.paymentMethod,
-                        paymentMethodId: result.paymentMethodId
+                        paymentMethodId: result.paymentMethodId,
+                        additionalProperty: (Array.isArray(result.additionalProperty)) ? result.additionalProperty : []
                     },
                     movieTickets: a.object.movieTickets
                 };
@@ -846,7 +754,7 @@ export async function createPotentialActionsFromTransaction(params: {
     // メール送信ONであれば送信アクション属性を生成
     let sendEmailMessageActionAttributes: factory.action.transfer.send.message.email.IAttributes | null = null;
     if (params.sendEmailMessage === true) {
-        const emailMessage = await createEmailMessageFromTransaction({
+        const emailMessage = await emailMessageBuilder.createSendOrderMessage({
             transaction: params.transaction,
             customerContact: params.customerContact,
             order: params.order,
