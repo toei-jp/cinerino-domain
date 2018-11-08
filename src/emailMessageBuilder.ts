@@ -46,7 +46,7 @@ export async function createSendOrderMessage(params: {
                         moment(event.endDate).tz('Asia/Tokyo').format('HH:mm')
                     ),
                     workPerformedName: event.workPerformed.name,
-                    screenName: event.location.name.ja,
+                    screenName: `${event.location.name.ja}()`,
                     reservedSeats: params.order.acceptedOffers.map((o) => {
                         const reservation = o.itemOffered;
                         let option = '';
